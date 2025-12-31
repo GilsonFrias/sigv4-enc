@@ -3,5 +3,6 @@ mod encoder;
 
 fn main() {
     println!("Hello, world!");
-    encoder::encode(encoder::HttpMethod::GET);
+    let result = encoder::encode(encoder::HttpMethod::GET, "faa");
+    println!("{}", result); 
 }
