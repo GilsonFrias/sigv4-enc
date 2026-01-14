@@ -25,8 +25,8 @@ fn url_encode(url: &str) -> String {
                 //3. Sort query strings alphabetically
                 let mut queries: Vec<&str> = q.split('&').collect();
                 println!("Resultant split: {:?}", queries);
-                let sorted_queries = queries.sort_by(|a, b| b.cmp(&a));
-                println!("Resultant sorted queries: {:?}", sorted_queries);
+                queries.sort();
+                println!("Resultant sorted queries: {:?}", queries);
                 format!("{}?{}", path, q)
             }else {
                 path.to_string()
@@ -51,7 +51,7 @@ pub fn encode(httpmethod: HttpMethod, uri: &str) -> String {
     dotenv().ok();
     //Obtain ACCESS_KEY form env variables
     let access_key = env::var("ACCESS_KEY").expect("ACCESS KEY is not configured");
-    let test_uri = "https://foo@faa.com/test/scripts/users?user=Pedro P.&YourQueryString1=*True*&YourQueryString2=_My-Value-26_";
+    let test_uri = "https://foo@faa.com/test/scripts/users?User=Pedro P.&YourQueryString1=*True*&YourQueryString2=_My-Value-26_&Zvalue=_";
     url_encode(test_uri);
     /*
     let parsedurl = Url::parse(test_uri);
