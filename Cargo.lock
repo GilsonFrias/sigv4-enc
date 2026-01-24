@@ -204,6 +204,7 @@ name = "sigv4-enc"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "percent-encoding",
  "url",
 ]
 

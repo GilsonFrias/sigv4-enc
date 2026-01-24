@@ -1,6 +1,10 @@
 use dotenv::dotenv;
 use std::env;
 use url::{Url, ParseError};
+use percent_encoding::{percent_encode, AsciiSet};
+
+const ENCODE_SET: &AsciiSet = &percent_encoding::NON_ALPHANUMERIC.remove(b'-').remove(b'.').remove(b'_').remove(b'~');
+const PATH_ENCODE_SET: &AsciiSet = &ENCODE_SET.remove(b'/');
 
 #[derive(Debug)]
 pub enum HttpMethod {
@@ -23,31 +27,41 @@ fn url_encode(url: &str) -> String {
             let path = url.path();
             let queries = url.query();
             
-            //2. Construct sorted canonical queries, fallback to an empty string if no 
+            //2. Encode the path
+            let encoded_path = percent_encode(path.as_bytes(), PATH_ENCODE_SET).to_string();
+            
+            //3. Construct sorted canonical queries, fallback to an empty string if no 
             //queries are available
             let canonical_queries = if let Some(q) = queries {
-                //2.1 Sort query strings alphabetically and concatenate them back
-                let mut queries: Vec<&str> = q.split('&').collect();
-                queries.sort();
-                queries.join("?")
-            }else {
+                // Parse query pairs
+                let mut pairs: Vec<(String, String)> = q.split('&').filter_map(|pair| {
+                    let mut parts = pair.splitn(2, '=');
+                    let key = parts.next()?.to_string();
+                    let value = parts.next().unwrap_or("").to_string();
+                    Some((key, value))
+                }).collect();
+                
+                // Sort by key
+                pairs.sort_by(|a, b| a.0.cmp(&b.0));
+                
+                // Encode and format
+                let encoded_pairs: Vec<String> = pairs.into_iter().map(|(k, v)| {
+                    format!("{}={}", percent_encode(k.as_bytes(), ENCODE_SET), percent_encode(v.as_bytes(), ENCODE_SET))
+                }).collect();
+                
+                encoded_pairs.join("&")
+            } else {
                 "".to_string()
             };
             
-            //3 Replace reserved characters
-            //TODO: wrap reserved chars replacement routine
-            //in a centralized Regex-based function and replace in place
-            let canonical_queries = canonical_queries.replace("+", "%20");
-            let canonical_queries = canonical_queries.replace("*", "%2A");
-            
-            //4 Concat canonical_uri(path) and cononical_queries with line return \n char
-            let canonical_request = format!("{:?}\n{:?}", path, canonical_queries);
-            return canonical_request
+            //4 Concat canonical_uri(path) and canonical_queries with line return \n char
+            let canonical_request = format!("{}\n{}", encoded_path, canonical_queries);
+            canonical_request
         }
         Err(_) => {
             //TODO: handle specific ParseError
             println!("Something went wrong parsing the url");
-            return url.to_string()   
+            url.to_string()   
         }
     }
 }
