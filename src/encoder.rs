@@ -2,6 +2,7 @@ use dotenv::dotenv;
 use std::env;
 use url::{Url, ParseError};
 
+#[derive(Debug)]
 pub enum HttpMethod {
     GET,
     PUT,
@@ -10,61 +11,63 @@ pub enum HttpMethod {
 }
 
 fn url_encode(url: &str) -> String {
-    //2. URLEncode.encode the string params according to AWS docu
-    //Create Canonical request template
-    //let parsed = Url::parse(url)?;
-    //let parsed = Url::parse("https://foo@foo.com/?myQuery=#yes!");
+    /*
+    URLEncode.encode the path and query str params according to AWS sigV4 encoding specs
+    */
+
+    //1. URL parse the input url string
     let parsedurl = Url::parse(url);
     match parsedurl {
         Ok(url) => {
             //1. Obtain paths and queries from url
             let path = url.path();
             let queries = url.query();
-            let path_and_queries = if let Some(q) = queries {
-                println!("Queries succesfully unpacked: {:?}", q);
-                //3. Sort query strings alphabetically
+            
+            //2. Construct sorted canonical queries, fallback to an empty string if no 
+            //queries are available
+            let canonical_queries = if let Some(q) = queries {
+                //2.1 Sort query strings alphabetically and concatenate them back
                 let mut queries: Vec<&str> = q.split('&').collect();
-                println!("Resultant split: {:?}", queries);
                 queries.sort();
-                println!("Resultant sorted queries: {:?}", queries);
-                format!("{}?{}", path, q)
+                queries.join("?")
             }else {
-                path.to_string()
+                "".to_string()
             };
-            //2. Replace spaces with '+'
-            let encoded = path_and_queries.replace("%20", "%22"); 
-            //let encoded = format!("{}{}", path, queries); 
-            println!("The complete url is: {:?}", url);
-            println!("The base path is: {:?}", path);
-            println!("The set of query strings: {:?}", queries);
-            println!("The resultant encoded string: {:?}", encoded);
+            
+            //3 Replace reserved characters
+            //TODO: wrap reserved chars replacement routine
+            //in a centralized Regex-based function and replace in place
+            let canonical_queries = canonical_queries.replace("+", "%20");
+            let canonical_queries = canonical_queries.replace("*", "%2A");
+            
+            //4 Concat canonical_uri(path) and cononical_queries with line return \n char
+            let canonical_request = format!("{:?}\n{:?}", path, canonical_queries);
+            return canonical_request
         }
         Err(_) => {
-            println!("Something went wrong parsing the url"); 
+            //TODO: handle specific ParseError
+            println!("Something went wrong parsing the url");
+            return url.to_string()   
         }
     }
-    return "str".to_string()
 }
 
 
 pub fn encode(httpmethod: HttpMethod, uri: &str) -> String {
     dotenv().ok();
-    //Obtain ACCESS_KEY form env variables
+    //Obtain ACCESS_KEY from env variables
     let access_key = env::var("ACCESS_KEY").expect("ACCESS KEY is not configured");
-    let test_uri = "https://foo@faa.com/test/scripts/users?User=Pedro P.&YourQueryString1=*True*&YourQueryString2=_My-Value-26_&Zvalue=_";
-    url_encode(test_uri);
-    /*
-    let parsedurl = Url::parse(test_uri);
-    match parsedurl {
-        Ok(url) => {
-            //1. Obtain absolute path from url
-            let path = url.path();   
-            println!("The base path is: {:?}", path);
-        }
-        Err(_) => {
-            println!("Something went wrong parsing the url"); 
-        }
-    }
-    */
-    return format!("{} {}", access_key, uri)
+
+    let test_uri = "https://foo@faa.com/test/scripts/users?User=Pedro P.~&YourQueryString1=*True+True*&zvalue=&YourQueryString2=_My/-Value/~26_&Zvalue=_";
+    //let test_uri = "https://foo@faa.com?User=Pedro P.~&YourQueryString1=*True+True*&zvalue=&YourQueryString2=_My/-Value/~26_&Zvalue=_";
+    println!("Test url: {:?}", test_uri);
+
+    //encode uri to form the base for the canonical_request
+    let canonical_request = url_encode(test_uri);
+    println!("The canonical_url is: {:?}", canonical_request);
+
+    //concat the HttpMethod to the beginning of the canonical_request string
+    let canonical_request = format!("{:?}\n{:?}", httpmethod, canonical_request);
+    println!("The canonical_url is: {:?}", canonical_request);
+    return canonical_request
 }
